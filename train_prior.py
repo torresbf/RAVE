@@ -33,6 +33,7 @@ class args(Config):
     BATCH = 8
     CKPT = None
     MAX_STEPS = 10000000
+    VAL_EVERY = 10000
 
     NAME = None
 
@@ -72,7 +73,7 @@ dataset = SimpleDataset(
     transforms=lambda x: x.reshape(1, -1),
 )
 
-val = (2 * len(dataset)) // 100
+val = max((2 * len(dataset)) // 100, 1)
 train = len(dataset) - val
 train, val = random_split(dataset, [train, val])
 
@@ -103,10 +104,10 @@ else:
     use_gpu = 0
 
 val_check = {}
-if len(train) >= 10000:
-    val_check["val_check_interval"] = 10000
+if len(train) >= args.VAL_EVERY:
+    val_check["val_check_interval"] = args.VAL_EVERY
 else:
-    nepoch = 10000 // len(train)
+    nepoch = args.VAL_EVERY // len(train)
     val_check["check_val_every_n_epoch"] = nepoch
 
 trainer = pl.Trainer(
@@ -114,9 +115,14 @@ trainer = pl.Trainer(
                                         name="prior"),
     gpus=use_gpu,
     callbacks=[validation_checkpoint, last_checkpoint],
-    resume_from_checkpoint=search_for_run(args.CKPT),
     max_epochs=100000,
     max_steps=args.MAX_STEPS,
     **val_check,
 )
-trainer.fit(model, train, val)
+
+run = search_for_run(args.CKPT)
+if run is not None:
+    step = torch.load(run, map_location='cpu')["global_step"]
+    trainer.fit_loop.epoch_loop._batches_that_stepped = step
+
+trainer.fit(model, train, val, ckpt_path=run)

@@ -55,6 +55,7 @@ if __name__ == "__main__":
         SR = 48000
         N_SIGNAL = 65536
         MAX_STEPS = setting(default=3000000, small=3000000, large=6000000)
+        VAL_EVERY = 10000
 
         BATCH = 8
 
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         ]),
     )
 
-    val = (2 * len(dataset)) // 100
+    val = max((2 * len(dataset)) // 100, 1)
     train = len(dataset) - val
     train, val = random_split(
         dataset,
@@ -141,10 +142,10 @@ if __name__ == "__main__":
         use_gpu = 0
 
     val_check = {}
-    if len(train) >= 10000:
-        val_check["val_check_interval"] = 10000
+    if len(train) >= args.VAL_EVERY:
+        val_check["val_check_interval"] = args.VAL_EVERY
     else:
-        nepoch = 10000 // len(train)
+        nepoch = args.VAL_EVERY // len(train)
         val_check["check_val_every_n_epoch"] = nepoch
 
     trainer = pl.Trainer(
@@ -156,4 +157,10 @@ if __name__ == "__main__":
         max_steps=args.MAX_STEPS,
         **val_check,
     )
-    trainer.fit(model, train, val, ckpt_path=search_for_run(args.CKPT))
+
+    run = search_for_run(args.CKPT)
+    if run is not None:
+        step = torch.load(run, map_location='cpu')["global_step"]
+        trainer.fit_loop.epoch_loop._batches_that_stepped = step
+
+    trainer.fit(model, train, val, ckpt_path=run)
