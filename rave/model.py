@@ -658,6 +658,7 @@ class RAVE(pl.LightningModule):
         # LOGGING
         self.log("loss_dis", loss_dis)
         self.log("loss_gen", loss_gen)
+        # self.log("loss_adv", loss_adv)
         self.log("loud_dist", loud_dist)
         self.log("regularization", kl)
         self.log("pred_true", pred_true.mean())
@@ -697,12 +698,12 @@ class RAVE(pl.LightningModule):
             x = self.pqmf.inverse(x)
             y = self.pqmf.inverse(y)
 
-        distance = self.distance(x, y)
+        distance = self.distance(x, y).detach()
 
         if self.trainer is not None:
             self.log("validation", distance)
 
-        return torch.cat([x, y], -1), mean
+        return torch.cat([x, y], -1).detach(), mean
 
     def validation_epoch_end(self, out):
         audio, z = list(zip(*out))
