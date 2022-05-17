@@ -10,7 +10,7 @@ import GPUtil as gpu
 
 from pytorch_lightning.utilities.cli import LightningCLI
 
-from data.data import DataModule, RAVEDataModule
+from data.vctk import VCTKDataModule
 
 cli = LightningCLI(
         model_class=RAVE, 

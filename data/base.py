@@ -1,61 +1,47 @@
-import torch
-from torch.utils.data import DataLoader, random_split, Dataset
 
-from utils.augmentations import aug
-from utils.data_utils import prepare_fn_groups_vocal, filter1_voice_wav, get_fragment_from_file
-
-from rave.core import random_phase_mangle, EMAModelCheckPoint
-
-import numpy as np
-
-from udls.transforms import Compose, RandomApply, Dequantize, RandomCrop
-
-import numpy as np
-import os
-from tqdm import tqdm
-import torch
-import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
-import json
+import numpy as np
 
-# from data.base import BaseDictDataset, BaseDataModule
-from utils.augmentations import aug
 from utils.data_utils import get_fragment_from_file, prepare_fn_groups_vocal, filter1_voice_wav
+from utils.augmentations import aug
+
+import pytorch_lightning as pl
 
 
-
-class DictLoader(Dataset):
+class BaseDictDataset(Dataset):
     def __init__(self, 
-                groups:dict, 
+                groups: dict, 
                 nr_samples: int, 
                 normalize: bool = True, 
-                augmentations_pos:dict = {}, 
-                augmentations_neg:dict = {}, 
+                augmentations:dict = {}, 
+                #augmentations_neg:dict = {}, 
                 transform_override: bool = False,
-                positive_examples: str = 'same_clip',
+                # positive_examples: str = 'same_clip',
                 batch_sampling_mode: str = 'sample_clips',
+                sr: int = 44100,
                 multi_epoch: int = 1):
         self.groups = groups
         self.multi_epoch = multi_epoch
         self.nr_samples = nr_samples
         self.normalize = normalize
         self.transform_override = transform_override
+        self.sr = sr
 
-        self.augmentations_pos = False
-        if augmentations_pos.get('enable', 0):
+        self.augmentations = False
+        if augmentations.get('enable', 0):
             if self.transform_override:
                 raise ValueError("Transform override but augmentations passed are not the transforms")
-            if augmentations_pos['enable']:
-                self.augmentations_pos = augmentations_pos
+            if augmentations['enable']:
+                self.augmentations = augmentations
         if self.transform_override:
-            self.augmentations_pos = augmentations_pos
+            self.augmentations = augmentations
 
-        self.augmentations_neg = False
-        if augmentations_neg.get('enable', 0):
-            if augmentations_neg['enable']:
-                self.augmentations_neg = augmentations_neg
+        # self.augmentations_neg = False
+        # if augmentations_neg.get('enable', 0):
+        #     if augmentations_neg['enable']:
+        #         self.augmentations_neg = augmentations_neg
             
-        self.positive_examples=positive_examples
+        # self.positive_examples=positive_examples
         self.batch_sampling_mode=batch_sampling_mode
 
         self.groups_keys = list(self.groups.keys())
@@ -68,11 +54,25 @@ class DictLoader(Dataset):
         else:
             self.data_len = len(self.groups)
 
-    def __len__(self):
-        return self.data_len * self.multi_epoch
+    # region init
 
-    def __getitem__(self, item):
-        item = item % self.data_len
+    # endregion
+
+    # region getitem
+
+    def getitem(self, item, file=None, group_name=None):
+        raise NotImplementedError
+
+    def get_fragment(self, fn):
+        return get_fragment_from_file(fn, self.nr_samples, self.normalize, draw_random=True, sr=self.sr)
+
+    def get_clip_and_group_name(self, item):
+        """
+        Samples from dataset using batch_sampling_mode
+        Returns:
+            fn: samples filename
+            group_name: group of name it belongs to 
+        """
 
         if self.batch_sampling_mode == 'sample_clips':
             selec_fn = self.inv_map_keys[item]  # Sample a clip in the dataset
@@ -85,47 +85,37 @@ class DictLoader(Dataset):
         # Gets list of fns of the artist
         selec_group = self.groups[group_name]  
 
-        file1 = selec_fn if self.batch_sampling_mode == 'sample_clips' else selec_group[np.random.randint(len(selec_group))]
+        fn = selec_fn if self.batch_sampling_mode == 'sample_clips' else selec_group[np.random.randint(len(selec_group))]
+        return fn, group_name        
+    
+    def augment(self, data):
         
-        if self.positive_examples == 'same_clip' or group_name == 'unknown':
-            file2 = file1
-        elif self.positive_examples == 'same_group':
-            rand1 = np.random.randint(len(selec_group))
-            file2 = selec_group[rand1]
-
-        clip1 = get_fragment_from_file(file1, self.nr_samples, self.normalize, draw_random=True)
-        #clip2 = get_fragment_from_file(file2, self.nr_samples, self.normalize, draw_random=True)
-
-        # If one wants to apply custom transforms, pass them through augmentations_pos dict and use transform_override
         override = False
         if self.transform_override:
             override = self.augmentations_pos
-        clip1 = aug(np.cast['float32'](clip1), self.augmentations_pos, override=override)
-        #lip2 = aug(np.cast['float32'](clip2), self.augmentations_pos)
-        # clip_more_neg = aug(np.cast['float32'](clip1), self.augmentations_neg) if self.augmentations_neg else torch.tensor(0)
-        return clip1 #, clip2, clip_more_neg, group_name
+        data = aug(np.cast['float32'](data), self.augmentations, override=override)
 
-
-class RandomLoader(Dataset):
-    def __init__(self, n_samples, sample_size):
-        self.n_samples = n_samples
-        self.sample_size = sample_size
-
-    def __len__(self):
-        return self.n_samples
+        return data
 
     def __getitem__(self, item):
-        item = item % self.n_samples
+        item = item % self.data_len
+        result = None
+        while result is None:
+            try:
+                fn, group_name = self.get_clip_and_group_name(item)
+                result = self.getitem(item, file=fn, group_name=group_name)
+                result = self.augment(result)
+                return result
+            except AssertionError as e:
+                raise e
+            except Exception as e:
+                raise e
 
-        clip1 = torch.zeros(self.sample_size)
-        #clip2 = torch.zeros(100000)
-        #clip_more_neg = torch.tensor(0)
-        #group_name = 'no'
-
-        return clip1#, clip2, clip_more_neg, group_name
+    def __len__(self):
+        return self.data_len * self.multi_epoch
 
 
-class DataModule(pl.LightningDataModule):
+class BaseDataModule(pl.LightningDataModule):
     def __init__(self, 
                  dataset_dirs: list = [],
                  batch_size: int = 32,
@@ -133,14 +123,14 @@ class DataModule(pl.LightningDataModule):
                  nr_samples: int = 176000,
                  normalize: bool = True,
                  num_workers: int = 8,
-                 positive_examples: str = "same_clip",
+                 sr: int = 44100,
+                #  positive_examples: str = "same_clip",
                  batch_sampling_mode: str = "sample_clips",
                  eval_frac: float = 0.1,
                  group_name_is_folder: bool = False,
                  group_by_artist : bool = False,
-                 mask_samples: bool = False,
-                 augs_pos: dict = {},
-                 augs_neg: dict = {},
+                 augs: dict = {},
+                #  augs_neg: dict = {},
                  transform_override: bool = False,
                  verbose: bool = True,
                  use_random_loader: bool = False
@@ -178,19 +168,20 @@ class DataModule(pl.LightningDataModule):
         self.batch_size_val = batch_size_val
         self.dataset_dirs = dataset_dirs
         self.normalize = normalize
-        self.positive_examples = positive_examples
+        # self.positive_examples = positive_examples
         self.batch_sampling_mode = batch_sampling_mode
         self.group_name_is_folder = group_name_is_folder
         self.group_by_artist = group_by_artist
         self.eval_frac = eval_frac
         self.groups = {}
         self.group_names = []  # maybe to register buffer
-        self.augs_pos = augs_pos
-        self.augs_neg = augs_neg
+        self.augs = augs
+        # self.augs_neg = augs_neg
         self.transform_override = transform_override
         self.nr_samples = nr_samples
         self.num_workers = num_workers
         self.verbose = verbose
+        self.sr = sr
         self.use_random_loader = use_random_loader
     
     def prepare_data(self):
@@ -202,7 +193,7 @@ class DataModule(pl.LightningDataModule):
                 self.groups = prepare_fn_groups_vocal(
                     dataset,
                     groups=self.groups,
-                    select_only_groups=['out_44100'],
+                    # select_only_groups=['out_44100'],
                     filter_fun_level1=filter1_voice_wav,
                     group_name_is_folder=self.group_name_is_folder,
                     group_by_artist=self.group_by_artist)
@@ -216,6 +207,8 @@ class DataModule(pl.LightningDataModule):
             
             if self.verbose:
                 print(f'Number of files in dataset: {self.n_files}, split into {self.n_groups} artists')
+        
+        self.prepare_data_end()
 
     def setup(self, stage = None):
         print('setup')
@@ -243,78 +236,11 @@ class DataModule(pl.LightningDataModule):
                 print(f"Size train (files): {self.n_files_train}")
                 print(f"Size eval (files): {self.n_files_eval}")
 
-            self.custom_transforms =Compose([
-                            RandomApply(
-                                lambda x: random_phase_mangle(x, 20, 2000, .99, self.sr),
-                                p=.8,
-                            ),
-                            Dequantize(16),
-                            lambda x: (Gain(min_gain_in_db=-6, max_gain_in_db=0, 
-                                            p=0.5)(x, sample_rate = self.sr)),
-                            lambda x: x.astype(np.float32),
-                        ])
+        self.setup_end()
+        
 
-    def train_dataloader(self):
-        print('train loader')
-        if self.use_random_loader:
-            return DataLoader(RandomLoader(n_samples=30000, sample_size=self.nr_samples))
-        else:
-            return DataLoader(DictLoader(self.groups_train, 
-                                            nr_samples=self.nr_samples, # For 4s, nr_samples is sr*4
-                                            normalize=self.normalize,
-                                            augmentations_pos={"custom_transform": self.custom_transforms }, 
-                                            augmentations_neg=self.augs_neg,
-                                            transform_override=self.transform_override,
-                                            positive_examples=self.positive_examples,
-                                            batch_sampling_mode=self.batch_sampling_mode,
-                                            multi_epoch=1),
-                                shuffle=True, 
-                                batch_size=self.batch_size,
-                                num_workers=self.num_workers, 
-                                drop_last=True)
-
-    def val_dataloader(self):
-        print('val loader')
-        if self.use_random_loader:
-            return DataLoader(RandomLoader(n_samples=30000, sample_size=self.nr_samples))
-        else:
-            return DataLoader(DictLoader(self.groups_eval,
-                                            nr_samples=self.nr_samples, # For 4s, nr_samples is sr*4
-                                            normalize=self.normalize,
-                                            augmentations_pos={}, 
-                                            augmentations_neg={},
-                                            positive_examples=self.positive_examples,
-                                            batch_sampling_mode=self.batch_sampling_mode,
-                                            multi_epoch=1),
-                                shuffle=False, 
-                                batch_size=self.batch_size_val,
-                                num_workers=self.num_workers, 
-                                drop_last=False)
-
-    # dataset = SimpleDataset(
-    #     args.PREPROCESSED,
-    #     args.WAV,
-    #     preprocess_function=simple_audio_preprocess(args.SR,
-    #                                                 2 * args.N_SIGNAL),
-    #     split_set="full",
-    #     transforms=Compose([
-    #         RandomCrop(args.N_SIGNAL),
-    #         RandomApply(
-    #             lambda x: random_phase_mangle(x, 20, 2000, .99, args.SR),
-    #             p=.8,
-    #         ),
-    #         Dequantize(16),
-    #         lambda x: x.astype(np.float32),
-    #     ]),
-    # )
-
-    # val = max((2 * len(dataset)) // 100, 1)
-    # train = len(dataset) - val
-    # train, val = random_split(
-    #     dataset,
-    #     [train, val],
-    #     generator=torch.Generator().manual_seed(42),
-    # )
-
-    # train = DataLoader(train, args.BATCH, True, drop_last=True, num_workers=8)
-    # val = DataLoader(val, args.BATCH, False, num_workers=8)
+    def prepare_data_end(self):
+        return
+    
+    def setup_end(self):
+        return

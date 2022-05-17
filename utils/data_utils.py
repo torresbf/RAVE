@@ -12,7 +12,7 @@ def normalize_signal(mix):
         mix /= max_abs
     return mix
     
-def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random=False):
+def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random=False, sr=44100):
     sample = None
     
     with sf.SoundFile(fn, 'r') as f:
@@ -22,8 +22,8 @@ def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random
             draw_interval_size = np.maximum(int(f.frames - nr_samples), 1)
             from_ = np.random.randint(0, draw_interval_size)
         #assert f.samplerate == 44100, f"sample rate is {f.samplerate}, should be 44100 though."
-        if f.samplerate != 44100:
-            print(f"Warning: sample rate is {f.samplerate}: {fn}")
+        if f.samplerate != sr:
+            print(f"Warning: sample rate is {f.samplerate}, configured as {sr}: {fn}")
         try:
             nr_samples_ = np.minimum(nr_samples, f.frames)
             f.seek(from_)
@@ -99,7 +99,7 @@ def prepare_fn_groups_vocal(root_folder,
 
 def filter1_voice_wav(fn):
     if (fn.endswith("wav") or fn.endswith(
-        "WAV")) and ".json" not in fn:
+        "WAV") or fn.endswith(".flac")) and ".json" not in fn:
         try:
             if get_audio_length(fn) < (44100 / 10):
                 print(f"too short: {fn}")

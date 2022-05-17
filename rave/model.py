@@ -658,7 +658,7 @@ class RAVE(pl.LightningModule):
         # LOGGING
         self.log("loss_dis", loss_dis)
         self.log("loss_gen", loss_gen)
-        # self.log("loss_adv", loss_adv)
+        self.log("loss_adv", loss_adv)
         self.log("loud_dist", loud_dist)
         self.log("regularization", kl)
         self.log("pred_true", pred_true.mean())
@@ -684,11 +684,9 @@ class RAVE(pl.LightningModule):
             y = self.pqmf.inverse(y)
         return y
 
-    @torch.no_grad()
+    @torch.no_grad()  # test if needed
     def validation_step(self, batch, batch_idx):
-        # print(batch.shape, batch[0].shape)
         x = batch.unsqueeze(1)  # [batch, len] to [batch, 1, len]
-        # print(x.shape)
 
         if self.pqmf is not None:
             x = self.pqmf(x)
@@ -710,7 +708,6 @@ class RAVE(pl.LightningModule):
 
     @torch.no_grad()
     def validation_epoch_end(self, out):
-        # print("here")
         audio, z = list(zip(*out))
 
         if self.saved_step > self.warmup:

@@ -3,9 +3,9 @@ model:
   class_path: rave.model.RAVE
   init_args:
     data_size: 16
-    capacity: 32 # 32 for small
+    capacity: 64 # 32 for small
     latent_size: 128
-    ratios: [4, 4, 4, 2] # small: [4, 4, 4, 2], large: [4, 4, 2, 2, 2]
+    ratios: [4, 4, 2, 2, 2] # small: [4, 4, 4, 2], large: [4, 4, 2, 2, 2]
     bias: true 
     loud_stride: 1
     use_noise: true
@@ -14,56 +14,44 @@ model:
     d_capacity: 16
     d_multiplier: 4
     d_n_layers: 4
-    warmup: 1000000  # large=3000000
+    warmup: 1500000  # large=3000000
     mode: "hinge"
     no_latency: false
-    sr: 44100
+    sr: 48000
     min_kl: 0.1
-    max_kl: 0.3
+    max_kl: 0.2
     cropped_latent_size: 0
     feature_match: true
 
 # ------------------ Datasets ------------------       
-# data:
-#   class_path: data.data.RAVEDataModule
-#   init_args:
-#     data_dir: "out_44100" 
-#     batch_size: 8
-#     batch_size_val: 8
-#     num_workers: 8
-#     sr: 44100
-#     n_signal: 65536
-#     preprocessed: ".tmp"
-
-
 data:
-  class_path: data.data.DataModule
+  class_path: data.vctk.VCTKDataModule
   init_args:
+    
     dataset_dirs: 
-      - "/home/cyran/RAVE/"
+      - "/home/bernardo/data/wav48_silence_trimmed"
 
 # ------------------ Data loading hyperparameters ------------------       
-    batch_size: 16
+    batch_size: 64
     batch_size_val:  16
     nr_samples: 65536
     normalize: true
     num_workers: 40
-    positive_examples: "same_clip" # or same_group
     batch_sampling_mode: "sample_clips" # or sample groups
-    eval_frac: 0.02
-    mask_samples: false
+    eval_frac: 0.06
     verbose: true
     use_random_loader: false
     group_name_is_folder: true
-    group_by_artist: false
-
+    group_by_artist: true
+    sr: 48000  # check, declared 2 times
 
 # ------------------ Training ------------------
 trainer:
-  gpus: 1 # check
+  gpus: -1 # check
   max_epochs: 100000
   max_steps: 3000000
-  val_check_interval: 2000
+  val_check_interval: 500
+  # accelerator: "dp"
   # check_val_every_n_epoch: 
   # ckpt: None
 
