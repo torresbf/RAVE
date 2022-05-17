@@ -108,7 +108,6 @@ class DictLoader(Dataset):
         clip1 = aug(np.cast['float32'](clip1), self.augmentations_pos, override=override)
         #lip2 = aug(np.cast['float32'](clip2), self.augmentations_pos)
         # clip_more_neg = aug(np.cast['float32'](clip1), self.augmentations_neg) if self.augmentations_neg else torch.tensor(0)
- 
         return clip1 #, clip2, clip_more_neg, group_name
 
 class RandomLoader(Dataset):
@@ -248,7 +247,7 @@ class DataModule(pl.LightningDataModule):
                 print(f"Size train (files): {self.n_files_train}")
                 print(f"Size eval (files): {self.n_files_eval}")
 
-            self.cuetom_transforms = transforms=Compose([
+            self.custom_transforms = transforms=Compose([
                             RandomApply(
                                 lambda x: random_phase_mangle(x, 20, 2000, .99, self.sr),
                                 p=.8,
@@ -267,7 +266,7 @@ class DataModule(pl.LightningDataModule):
             return DataLoader(DictLoader(self.groups_train, 
                                             nr_samples=self.nr_samples, # For 4s, nr_samples is sr*4
                                             normalize=self.normalize,
-                                            augmentations_pos={"custom_transform": self.cuetom_transforms }, 
+                                            augmentations_pos={"custom_transform": self.custom_transforms }, 
                                             augmentations_neg=self.augs_neg,
                                             transform_override=self.transform_override,
                                             positive_examples=self.positive_examples,

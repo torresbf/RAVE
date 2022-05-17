@@ -684,8 +684,11 @@ class RAVE(pl.LightningModule):
             y = self.pqmf.inverse(y)
         return y
 
+    @torch.no_grad()
     def validation_step(self, batch, batch_idx):
-        x = batch.unsqueeze(1)
+        # print(batch.shape, batch[0].shape)
+        x = batch.unsqueeze(1)  # [batch, len] to [batch, 1, len]
+        # print(x.shape)
 
         if self.pqmf is not None:
             x = self.pqmf(x)
@@ -705,7 +708,9 @@ class RAVE(pl.LightningModule):
 
         return torch.cat([x, y], -1).detach(), mean
 
+    @torch.no_grad()
     def validation_epoch_end(self, out):
+        # print("here")
         audio, z = list(zip(*out))
 
         if self.saved_step > self.warmup:

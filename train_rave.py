@@ -23,21 +23,21 @@ cli = LightningCLI(
   
 # ------------------ Device check ------------------
 
-CUDA = gpu.getAvailable(maxMemory=.05)
-VISIBLE_DEVICES = environ.get("CUDA_VISIBLE_DEVICES", "")
+# CUDA = gpu.getAvailable(maxMemory=.05)
+# VISIBLE_DEVICES = environ.get("CUDA_VISIBLE_DEVICES", "")
 
-if VISIBLE_DEVICES:
-    use_gpu = int(int(VISIBLE_DEVICES) >= 0)
-elif len(CUDA):
-    environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
-    use_gpu = 1
-elif torch.cuda.is_available():
-    print("Cuda is available but no fully free GPU found.")
-    print("Training may be slower due to concurrent processes.")
-    use_gpu = 1
-else:
-    print("No GPU found.")
-    use_gpu = 0
+# if VISIBLE_DEVICES:
+#     use_gpu = int(int(VISIBLE_DEVICES) >= 0)
+# elif len(CUDA):
+#     environ["CUDA_VISIBLE_DEVICES"] = str(CUDA[0])
+#     use_gpu = 1
+# elif torch.cuda.is_available():
+#     print("Cuda is available but no fully free GPU found.")
+#     print("Training may be slower due to concurrent processes.")
+#     use_gpu = 1
+# else:
+#     print("No GPU found.")
+#     use_gpu = 0
 
 batch_size = cli.config["data"].as_dict()["init_args"]["batch_size"]
 
