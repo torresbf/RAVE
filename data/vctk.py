@@ -24,6 +24,7 @@ class VCTKDataset(BaseDictDataset):
         super(VCTKDataset, self).__init__(*args, **kwargs)
 
     def getitem(self, item, file=None, group_name=None):
+        
         fragment = self.get_fragment(file)
         return fragment
     

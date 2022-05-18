@@ -41,6 +41,8 @@ def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random
             if normalize:
                 sample = normalize_signal(sample)
         except Exception as e:
+            print(f"Warning: could not get fragment from {fn}. Returning silence vector")
+            sample = np.zeros((nr_samples,))
             pass
     return sample
 

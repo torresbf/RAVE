@@ -3,8 +3,8 @@ import torch
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
-        # parser.add_argument("--ckpt_path", default=None)
-        parser.add_argument("--test", default=None)
+        parser.add_argument("--ckpt_path", default=None)
+        # parser.add_argument("--test", default=None)
 
         # parser.link_arguments("data.batch_size", "model.batch_size")
 

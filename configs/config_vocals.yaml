@@ -17,7 +17,7 @@ model:
     warmup: 1000000  # large=3000000
     mode: "hinge"
     no_latency: false
-    sr: 48000
+    sr: 44100
     min_kl: 0.1
     max_kl: 0.1
     cropped_latent_size: 0
@@ -25,11 +25,14 @@ model:
 
 # ------------------ Datasets ------------------       
 data:
-  class_path: data.vctk.VCTKDataModule
+  class_path: data.vocals.VocalsDataModule
   init_args:
     
     dataset_dirs: 
-      - "/home/bernardo/data/wav48_silence_trimmed"
+      - "/media/data/bernardo/tencys_vocals_mono_16b_trim/"
+      - "/media/data/bernardo/dataset3_ghero_vocals_mono_16b_trim/"
+      - "/media/data/bernardo/dataset4_ghero_vocals_mono_16b_trim/"
+      # - "/home/bernardo/data/tencys_vocals_mono_16b_trim_unknown/"
 
 # ------------------ Data loading hyperparameters ------------------       
     batch_size: 100
@@ -43,23 +46,40 @@ data:
     use_random_loader: false
     group_name_is_folder: true
     group_by_artist: true
-    sr: 48000  # check, declared 2 times
+    sr: 44100  # check, declared 2 times
+
+# ------------------ Augmentations ------------------       
+    augs: 
+      "enable": true
+      "gaussian_noise": 0
+      "pitch_shift_naive": 0
+      "time_stretch": 0
+      "gain": 0.5
+      "shift": 0
+      "parametric_eq": 0.3
+      "tanh_distortion": 0
+      "time_mask": 0.4
+      "formant_shift_parselmouth": 0
+      "pitch_shift_parselmouth": 0
+      "pitch_range_parselmouth": 0
+      "pitch_shift_parselmouth_prob": 0
+      "random_phase_mangle": 0.8
 
 # ------------------ Training ------------------
 trainer:
   gpus: 1 # check
   max_epochs: 100000
-  max_steps: 3000000
+  max_steps: 5000000
   # val_check_interval: 500
   # accelerator: "dp"
-  check_val_every_n_epoch: 2
+  check_val_every_n_epoch: 10
   # ckpt: None
 
 # ------------------ Logger ------------------
   logger:
     class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "runs/vctk_48000"
+      save_dir: "runs/vocals_44100"
       name: "rave"
 
 # ------------------ Checkpoint callbacks ------------------

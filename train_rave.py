@@ -9,10 +9,10 @@ from os import environ, path
 import GPUtil as gpu
 
 from pytorch_lightning.utilities.cli import LightningCLI
-
+from utils.cli import CLI
 from data.vctk import VCTKDataModule
 
-cli = LightningCLI(
+cli = CLI(
         model_class=RAVE, 
         datamodule_class=pl.LightningDataModule, #pl.LightningDataModule,
         subclass_mode_model=True,
@@ -49,4 +49,4 @@ run = search_for_run(None)
 #     step = torch.load(run, map_location='cpu')["global_step"]
 #     trainer.fit_loop.epoch_loop._batches_that_stepped = step
 
-cli.trainer.fit(cli.model, cli.datamodule, ckpt_path=run)
+cli.trainer.fit(cli.model, cli.datamodule) #, ckpt_path=run)

@@ -1,4 +1,5 @@
 
+import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
@@ -54,17 +55,19 @@ class BaseDictDataset(Dataset):
         else:
             self.data_len = len(self.groups)
 
-    # region init
-
-    # endregion
-
-    # region getitem
 
     def getitem(self, item, file=None, group_name=None):
         raise NotImplementedError
 
     def get_fragment(self, fn):
-        return get_fragment_from_file(fn, self.nr_samples, self.normalize, draw_random=True, sr=self.sr)
+        """
+        Returns randomly sampled, normalized audio fragment from file fn of size self.nr_samples
+        """
+        frag = get_fragment_from_file(fn, self.nr_samples, self.normalize, draw_random=True, sr=self.sr)
+        if frag is None: 
+            print(f"Warning (get_fragment): could not get fragment from {fn}. Returning silence vector")
+            frag = torch.zeros(self.nr_samples)
+        return frag
 
     def get_clip_and_group_name(self, item):
         """
@@ -89,6 +92,12 @@ class BaseDictDataset(Dataset):
         return fn, group_name        
     
     def augment(self, data):
+        """
+        Performs augmentations descibred in dict self.augmentations on input data
+        Can be overriden by transform_override, in which case  self.augmentations is
+            expected to contain a dictionary whose values contains the transforms 
+            themselves to be applied
+        """
         
         override = False
         if self.transform_override:
@@ -102,8 +111,11 @@ class BaseDictDataset(Dataset):
         result = None
         while result is None:
             try:
+                # Samples first filename and group_name
                 fn, group_name = self.get_clip_and_group_name(item)
+                # Additional get item
                 result = self.getitem(item, file=fn, group_name=group_name)
+                # Augments data
                 result = self.augment(result)
                 return result
             except AssertionError as e:
