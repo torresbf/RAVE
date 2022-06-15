@@ -24,10 +24,10 @@ class VCTKDataset(BaseDictDataset):
         super(VCTKDataset, self).__init__(*args, **kwargs)
 
     def getitem(self, item, file=None, group_name=None):
-        
+
         fragment = self.get_fragment(file)
         return fragment
-    
+
 
 class RandomLoader(Dataset):
     def __init__(self, n_samples, sample_size):
@@ -45,48 +45,49 @@ class RandomLoader(Dataset):
         #clip_more_neg = torch.tensor(0)
         #group_name = 'no'
 
-        return clip1#, clip2, clip_more_neg, group_name
-
-
+        return clip1  # , clip2, clip_more_neg, group_name
 
 
 class VCTKDataModule(BaseDataModule):
 
-    def __init__(self, 
-                use_random_loader = False,
-                **kwargs):
+    def __init__(self,
+                 use_random_loader=False,
+                 **kwargs):
 
         super(VCTKDataModule, self).__init__(**kwargs)
-        
+
         self.use_random_loader = use_random_loader
-        self.custom_transforms =Compose([
-                                RandomApply(
-                                    lambda x: random_phase_mangle(x, 20, 2000, .99, self.sr),
-                                    p=.8,
-                                ),
-                                Dequantize(16),
-                                lambda x: (Gain(min_gain_in_db=-6, max_gain_in_db=0, 
-                                                p=0.5)(x, sample_rate = self.sr)),
-                                lambda x: x.astype(np.float32),
-                            ])
+        self.custom_transforms = Compose([
+            RandomApply(
+                lambda x: random_phase_mangle(
+                    x, 20, 2000, .99, self.sr),
+                p=.8,
+            ),
+            Dequantize(16),
+            lambda x: (Gain(min_gain_in_db=-6, max_gain_in_db=0,
+                            p=0.5)(x, sample_rate=self.sr)),
+            lambda x: x.astype(np.float32),
+        ])
 
     def train_dataloader(self):
-            print('train loader')
-            if self.use_random_loader:
-                return DataLoader(RandomLoader(n_samples=30000, sample_size=self.nr_samples))
-            else:
-                return DataLoader(VCTKDataset(self.groups_train, 
-                                                nr_samples=self.nr_samples, # For 4s, nr_samples is sr*4
-                                                normalize=self.normalize,
-                                                augmentations={"custom_transform": self.custom_transforms }, 
-                                                transform_override=self.transform_override,
-                                                batch_sampling_mode=self.batch_sampling_mode,
-                                                sr = self.sr,
-                                                multi_epoch=1),
-                                    shuffle=True, 
-                                    batch_size=self.batch_size,
-                                    num_workers=self.num_workers, 
-                                    drop_last=True)
+        print('train loader')
+        if self.use_random_loader:
+            return DataLoader(RandomLoader(n_samples=30000, sample_size=self.nr_samples))
+        else:
+            return DataLoader(VCTKDataset(self.groups_train,
+                                          nr_samples=self.nr_samples,  # For 4s, nr_samples is sr*4
+                                          normalize=self.normalize,
+                                          augmentations={
+                                              "custom_transform": self.custom_transforms},
+                                          transform_override=self.transform_override,
+                                          batch_sampling_mode=self.batch_sampling_mode,
+                                          sr=self.sr,
+                                          multi_epoch=1),
+                              shuffle=True,
+                              batch_size=self.batch_size,
+                              num_workers=self.num_workers,
+                              drop_last=True,
+                              pin_memory=True)
 
     def val_dataloader(self):
         print('val loader')
@@ -94,14 +95,15 @@ class VCTKDataModule(BaseDataModule):
             return DataLoader(RandomLoader(n_samples=30000, sample_size=self.nr_samples))
         else:
             return DataLoader(VCTKDataset(self.groups_eval,
-                                            nr_samples=self.nr_samples, # For 4s, nr_samples is sr*4
-                                            normalize=self.normalize,
-                                            augmentations={},
-                                            # positive_examples=self.positive_examples,
-                                            batch_sampling_mode=self.batch_sampling_mode,
-                                            sr = self.sr,
-                                            multi_epoch=1),
-                                shuffle=False, 
-                                batch_size=self.batch_size_val,
-                                num_workers=self.num_workers, 
-                                drop_last=False)
+                                          nr_samples=self.nr_samples,  # For 4s, nr_samples is sr*4
+                                          normalize=self.normalize,
+                                          augmentations={},
+                                          # positive_examples=self.positive_examples,
+                                          batch_sampling_mode=self.batch_sampling_mode,
+                                          sr=self.sr,
+                                          multi_epoch=1),
+                              shuffle=False,
+                              batch_size=self.batch_size_val,
+                              num_workers=self.num_workers,
+                              drop_last=False,
+                              pin_memory=True)

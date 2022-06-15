@@ -10,17 +10,17 @@ import pytorch_lightning as pl
 
 
 class BaseDictDataset(Dataset):
-    def __init__(self, 
-                groups: dict, 
-                nr_samples: int, 
-                normalize: bool = True, 
-                augmentations:dict = {}, 
-                #augmentations_neg:dict = {}, 
-                transform_override: bool = False,
-                # positive_examples: str = 'same_clip',
-                batch_sampling_mode: str = 'sample_clips',
-                sr: int = 44100,
-                multi_epoch: int = 1):
+    def __init__(self,
+                 groups: dict,
+                 nr_samples: int,
+                 normalize: bool = True,
+                 augmentations: dict = {},
+                 #augmentations_neg:dict = {},
+                 transform_override: bool = False,
+                 # positive_examples: str = 'same_clip',
+                 batch_sampling_mode: str = 'sample_clips',
+                 sr: int = 44100,
+                 multi_epoch: int = 1):
         self.groups = groups
         self.multi_epoch = multi_epoch
         self.nr_samples = nr_samples
@@ -31,7 +31,8 @@ class BaseDictDataset(Dataset):
         self.augmentations = False
         if augmentations.get('enable', 0):
             if self.transform_override:
-                raise ValueError("Transform override but augmentations passed are not the transforms")
+                raise ValueError(
+                    "Transform override but augmentations passed are not the transforms")
             if augmentations['enable']:
                 self.augmentations = augmentations
         if self.transform_override:
@@ -41,9 +42,9 @@ class BaseDictDataset(Dataset):
         # if augmentations_neg.get('enable', 0):
         #     if augmentations_neg['enable']:
         #         self.augmentations_neg = augmentations_neg
-            
+
         # self.positive_examples=positive_examples
-        self.batch_sampling_mode=batch_sampling_mode
+        self.batch_sampling_mode = batch_sampling_mode
 
         self.groups_keys = list(self.groups.keys())
         self.inv_map = {fn: k for k, v in groups.items() for fn in v}
@@ -55,17 +56,22 @@ class BaseDictDataset(Dataset):
         else:
             self.data_len = len(self.groups)
 
-
     def getitem(self, item, file=None, group_name=None):
+        """
+        Return wil be passed to augment
+
+        """
         raise NotImplementedError
 
     def get_fragment(self, fn):
         """
         Returns randomly sampled, normalized audio fragment from file fn of size self.nr_samples
         """
-        frag = get_fragment_from_file(fn, self.nr_samples, self.normalize, draw_random=True, sr=self.sr)
-        if frag is None: 
-            print(f"Warning (get_fragment): could not get fragment from {fn}. Returning silence vector")
+        frag = get_fragment_from_file(
+            fn, self.nr_samples, self.normalize, draw_random=True, sr=self.sr)
+        if frag is None:
+            print(
+                f"Warning (get_fragment): could not get fragment from {fn}. Returning silence vector")
             frag = torch.zeros(self.nr_samples)
         return frag
 
@@ -83,14 +89,16 @@ class BaseDictDataset(Dataset):
         elif self.batch_sampling_mode == 'sample_groups':
             group_name = self.groups_keys[item]  # Sample an artist (group)
         else:
-            raise ValueError(f'Invalid batch sampling mode. Value was {self.batch_sampling_mode}')
-        
-        # Gets list of fns of the artist
-        selec_group = self.groups[group_name]  
+            raise ValueError(
+                f'Invalid batch sampling mode. Value was {self.batch_sampling_mode}')
 
-        fn = selec_fn if self.batch_sampling_mode == 'sample_clips' else selec_group[np.random.randint(len(selec_group))]
-        return fn, group_name        
-    
+        # Gets list of fns of the artist
+        selec_group = self.groups[group_name]
+
+        fn = selec_fn if self.batch_sampling_mode == 'sample_clips' else selec_group[np.random.randint(
+            len(selec_group))]
+        return fn, group_name
+
     def augment(self, data):
         """
         Performs augmentations descibred in dict self.augmentations on input data
@@ -98,13 +106,17 @@ class BaseDictDataset(Dataset):
             expected to contain a dictionary whose values contains the transforms 
             themselves to be applied
         """
-        
+
         override = False
         if self.transform_override:
             override = self.augmentations_pos
-        data = aug(np.cast['float32'](data), self.augmentations, override=override)
+        data = aug(np.cast['float32'](data),
+                   self.augmentations, override=override)
 
         return data
+
+    def return_data(self, result=None, group_name=None, idx=None):
+        return result
 
     def __getitem__(self, item):
         item = item % self.data_len
@@ -117,6 +129,8 @@ class BaseDictDataset(Dataset):
                 result = self.getitem(item, file=fn, group_name=group_name)
                 # Augments data
                 result = self.augment(result)
+                # Adds extra values to return
+                result = self.return_data(result, group_name, item)
                 return result
             except AssertionError as e:
                 raise e
@@ -128,7 +142,7 @@ class BaseDictDataset(Dataset):
 
 
 class BaseDataModule(pl.LightningDataModule):
-    def __init__(self, 
+    def __init__(self,
                  dataset_dirs: list = [],
                  batch_size: int = 32,
                  batch_size_val: int = 32,
@@ -136,18 +150,17 @@ class BaseDataModule(pl.LightningDataModule):
                  normalize: bool = True,
                  num_workers: int = 8,
                  sr: int = 44100,
-                #  positive_examples: str = "same_clip",
+                 #  positive_examples: str = "same_clip",
                  batch_sampling_mode: str = "sample_clips",
                  eval_frac: float = 0.1,
                  group_name_is_folder: bool = False,
-                 group_by_artist : bool = False,
+                 group_by_artist: bool = False,
                  augs: dict = {},
-                #  augs_neg: dict = {},
+                 #  augs_neg: dict = {},
                  transform_override: bool = False,
                  verbose: bool = True,
                  use_random_loader: bool = False
                  ):
-
         """
         Args:
             dataset_dirs: List of directories where data is contained. Dirs will be scanned and 
@@ -173,9 +186,10 @@ class BaseDataModule(pl.LightningDataModule):
             transform_override: If true, augs_pos will contain a dict of transforms that will replace the positive augmentations loader
             verbose: 
             use_random_loader: Loads a random loader (for debug purposes)
-            
+
         """
         super().__init__()
+        self.save_hyperparameters()
         self.batch_size = batch_size
         self.batch_size_val = batch_size_val
         self.dataset_dirs = dataset_dirs
@@ -195,9 +209,17 @@ class BaseDataModule(pl.LightningDataModule):
         self.verbose = verbose
         self.sr = sr
         self.use_random_loader = use_random_loader
-    
+
     def prepare_data(self):
         print('prep data')
+
+        # if self.verbose:
+
+        self.prepare_data_end()
+
+    def setup(self, stage=None):
+        print('setup')
+
         if not self.use_random_loader:
             assert len(self.dataset_dirs) > 0
             # For every dataset (folder with group names in subfolders) do parse
@@ -214,45 +236,46 @@ class BaseDataModule(pl.LightningDataModule):
             self.group_names = list(self.groups.keys())
             np.random.shuffle(self.group_names)
 
-            self.n_files = sum([len(group) for group in list(self.groups.values())])
+            self.n_files = sum([len(group)
+                               for group in list(self.groups.values())])
             self.n_groups = len(self.group_names)
-            
-            if self.verbose:
-                print(f'Number of files in dataset: {self.n_files}, split into {self.n_groups} artists')
-        
-        self.prepare_data_end()
 
-    def setup(self, stage = None):
-        print('setup')
+            print(
+                f'Number of files in dataset: {self.n_files}, split into {self.n_groups} artists')
 
-        if not self.use_random_loader:
-            count_elements_in_dict_split = lambda dic, keys_subset : sum([len(dic[key]) for key in keys_subset])
+            def count_elements_in_dict_split(dic, keys_subset): return sum(
+                [len(dic[key]) for key in keys_subset])
 
             # Train/val split splits groups
             self.eval_split = int(len(self.group_names) * self.eval_frac)
-            self.groups_train = dict((k, self.groups[k]) for k in self.group_names[self.eval_split:])
-            self.groups_eval = dict((k, self.groups[k]) for k in self.group_names[:self.eval_split])
-            self.n_files_train = count_elements_in_dict_split(self.groups, self.group_names[self.eval_split:])
-            self.n_files_eval = count_elements_in_dict_split(self.groups, self.group_names[:self.eval_split])
+            self.groups_train = dict(
+                (k, self.groups[k]) for k in self.group_names[self.eval_split:])
+            self.groups_eval = dict(
+                (k, self.groups[k]) for k in self.group_names[:self.eval_split])
+            self.n_files_train = count_elements_in_dict_split(
+                self.groups, self.group_names[self.eval_split:])
+            self.n_files_eval = count_elements_in_dict_split(
+                self.groups, self.group_names[:self.eval_split])
 
             if self.batch_sampling_mode == 'sample_clips':
                 n_batches = self.n_files_train / self.batch_size
             elif self.batch_sampling_mode == 'sample_groups':
                 n_batches = self.eval_split / self.batch_size
             else:
-                raise ValueError(f'Invalid batch sampling mode. Value was {self.batch_sampling_mode}')
+                raise ValueError(
+                    f'Invalid batch sampling mode. Value was {self.batch_sampling_mode}')
 
             if self.verbose:
                 print(f"Number of training batches: {n_batches}")
-                print(f"Size train (groups) : {self.n_groups-self.eval_split}, eval: {self.eval_split}")
+                print(
+                    f"Size train (groups) : {self.n_groups-self.eval_split}, eval: {self.eval_split}")
                 print(f"Size train (files): {self.n_files_train}")
                 print(f"Size eval (files): {self.n_files_eval}")
 
         self.setup_end()
-        
 
     def prepare_data_end(self):
         return
-    
+
     def setup_end(self):
         return

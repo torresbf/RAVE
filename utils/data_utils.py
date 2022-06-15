@@ -5,16 +5,16 @@ import os
 from utils.core import get_audio_length
 
 
-
 def normalize_signal(mix):
     max_abs = np.maximum(np.abs(np.min(mix)), np.max(mix))
     if max_abs > 0:
         mix /= max_abs
     return mix
-    
+
+
 def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random=False, sr=44100):
     sample = None
-    
+
     with sf.SoundFile(fn, 'r') as f:
         if nr_samples < 0:
             nr_samples = f.frames
@@ -23,7 +23,8 @@ def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random
             from_ = np.random.randint(0, draw_interval_size)
         #assert f.samplerate == 44100, f"sample rate is {f.samplerate}, should be 44100 though."
         if f.samplerate != sr:
-            print(f"Warning: sample rate is {f.samplerate}, configured as {sr}: {fn}")
+            print(
+                f"Warning: sample rate is {f.samplerate}, configured as {sr}: {fn}")
         try:
             nr_samples_ = np.minimum(nr_samples, f.frames)
             f.seek(from_)
@@ -41,21 +42,24 @@ def get_fragment_from_file(fn, nr_samples, normalize=False, from_=0, draw_random
             if normalize:
                 sample = normalize_signal(sample)
         except Exception as e:
-            print(f"Warning: could not get fragment from {fn}. Returning silence vector")
+            print(
+                f"Warning: could not get fragment from {fn}. Returning silence vector")
             sample = np.zeros((nr_samples,))
             pass
     return sample
 
 # todo redo func, group by artist
-def prepare_fn_groups_vocal(root_folder, 
-                        groups=None, 
-                        select_only_groups=None,
-                        filter_fun_level1=None,
-                        group_name_is_folder=True,
-                        group_by_artist=False):
+
+
+def prepare_fn_groups_vocal(root_folder,
+                            groups=None,
+                            select_only_groups=None,
+                            filter_fun_level1=None,
+                            group_name_is_folder=True,
+                            group_by_artist=False):
 
     if filter_fun_level1 == None:
-        filter_fun_level1 = lambda x: True
+        def filter_fun_level1(x): return True
 
     if groups == None:
         groups = {}
@@ -67,7 +71,8 @@ def prepare_fn_groups_vocal(root_folder,
         print('Grouping data by subdir')
 
     if select_only_groups is not None:
-        print(f'Warning: select_only_groups is not None, selecting data only in subdirs {select_only_groups}')
+        print(
+            f'Warning: select_only_groups is not None, selecting data only in subdirs {select_only_groups}')
     result = []
     #groups = {}
     for root0, dirs0, _ in tqdm(os.walk(root_folder), desc=f"scanning sub-directories of {root_folder}"):
@@ -77,10 +82,11 @@ def prepare_fn_groups_vocal(root_folder,
             else:
                 group_name = 'unknown'
                 if select_only_groups is not None:
-                    print("Warning: group_name_is_folder is False and select_only_groups is not None")
+                    print(
+                        "Warning: group_name_is_folder is False and select_only_groups is not None")
 
             if select_only_groups is None or \
-              (select_only_groups is not None and group_name in select_only_groups):
+                    (select_only_groups is not None and group_name in select_only_groups):
 
                 fns_level1 = []
                 for root1, dirs1, files1 in os.walk(os.path.join(root0, dir0)):
@@ -94,17 +100,17 @@ def prepare_fn_groups_vocal(root_folder,
                                 else:
                                     groups[group_name] = [fn]
                             else:
-                                groups[fn_counter] = [fn]    
+                                groups[fn_counter] = [fn]
                                 fn_counter += 1
     return groups
 
 
 def filter1_voice_wav(fn):
     if (fn.endswith("wav") or fn.endswith(
-        "WAV") or fn.endswith(".flac")) and ".json" not in fn:
+            "WAV") or fn.endswith(".flac")) and ".json" not in fn:
         try:
             if get_audio_length(fn) < (44100 / 10):
-                print(f"too short: {fn}")
+                # print(f"too short: {fn}")
                 return False
         except RuntimeError:
             print(f"exception: {fn}")

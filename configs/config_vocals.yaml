@@ -4,7 +4,7 @@ model:
   init_args:
     data_size: 16
     capacity: 64 # 32 for small
-    latent_size: 128
+    latent_size: 256
     ratios: [4, 4, 2, 2, 2] # small: [4, 4, 4, 2], large: [4, 4, 2, 2, 2]
     bias: true 
     loud_stride: 1
@@ -14,12 +14,12 @@ model:
     d_capacity: 16
     d_multiplier: 4
     d_n_layers: 4
-    warmup: 1000000  # large=3000000
+    warmup: 300000  # large=3000000
     mode: "hinge"
     no_latency: false
     sr: 44100
     min_kl: 0.1
-    max_kl: 0.1
+    max_kl: 0.3
     cropped_latent_size: 0
     feature_match: true
 
@@ -35,7 +35,7 @@ data:
       # - "/home/bernardo/data/tencys_vocals_mono_16b_trim_unknown/"
 
 # ------------------ Data loading hyperparameters ------------------       
-    batch_size: 100
+    batch_size: 50
     batch_size_val:  32
     nr_samples: 65536
     normalize: true
@@ -58,20 +58,20 @@ data:
       "shift": 0
       "parametric_eq": 0.3
       "tanh_distortion": 0
-      "time_mask": 0.4
+      "time_mask": 0.5
       "formant_shift_parselmouth": 0
-      "pitch_shift_parselmouth": 0
-      "pitch_range_parselmouth": 0
-      "pitch_shift_parselmouth_prob": 0
+      "pitch_shift_parselmouth": 1.2
+      "pitch_range_parselmouth": 1.2
+      "pitch_shift_parselmouth_prob": 0.5
       "random_phase_mangle": 0.8
 
 # ------------------ Training ------------------
 trainer:
-  gpus: 1 # check
+  gpus: 2 # check
   max_epochs: 100000
   max_steps: 5000000
   # val_check_interval: 500
-  # accelerator: "dp"
+  accelerator: "ddp"
   check_val_every_n_epoch: 10
   # ckpt: None
 
@@ -79,21 +79,37 @@ trainer:
   logger:
     class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "runs/vocals_44100"
+      save_dir: "runs/test2_vocals_44100"
       name: "rave"
+      # version: 4  # IMPORTANT TO SET
 
 # ------------------ Checkpoint callbacks ------------------
   callbacks:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
-        #dirpath: ""
         monitor: "validation"
         mode: "min"
-        filename: "best-{epoch}-{step}"
-    # - class_path: pytorch_lightning.callbacks.ModelCheckpoint
-    #   init_args:
-    #     every_n_epochs: 20
-    #     filename: "best-{epoch}-{step}"
+        filename: "best-val-{epoch}-{step}"
+        save_top_k: 2
+
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
         filename: "last"
+        save_top_k: 1
+
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        every_n_epochs: 25
+        save_top_k: -1
+        filename: "cptk-{epoch}-{step}"
+    - class_path: callbacks.visualization.PlotSpectograms
+      init_args:
+        log_n_epochs: 20
+        n_to_log: 2
+        save_png: true
+        randomize: true
+        log_audio: true
+
+    # - class_path: callbacks.log_audio.LogAudio
+    #     init_args:
+    #       log_n_epochs: 50

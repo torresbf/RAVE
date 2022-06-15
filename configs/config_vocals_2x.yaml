@@ -86,14 +86,17 @@ trainer:
   callbacks:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
-        #dirpath: ""
         monitor: "validation"
         mode: "min"
-        filename: "best-{epoch}-{step}"
-    # - class_path: pytorch_lightning.callbacks.ModelCheckpoint
-    #   init_args:
-    #     every_n_epochs: 20
-    #     filename: "best-{epoch}-{step}"
+        filename: "best-val-{epoch}-{step}"
+        save_top_k: 2
+
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
         filename: "last"
+      
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        every_n_epochs: 50
+        save_top_k: -1
+        filename: "cptk-{epoch}-{step}"

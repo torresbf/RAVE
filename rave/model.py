@@ -529,7 +529,7 @@ class RAVE(pl.LightningModule):
                 z.shape[0],
                 self.latent_size - self.cropped_latent_size,
                 z.shape[-1],
-            ).to(z.device)
+            ).type_as(z)
             z = torch.cat([z, noise], 1)
         return z, kl
 
@@ -567,7 +567,8 @@ class RAVE(pl.LightningModule):
             self.encoder.eval()
 
         # ENCODE INPUT
-        z, kl = self.reparametrize(*self.encoder(x))
+        mean, scale = self.encoder(x)
+        z, kl = self.reparametrize(mean, scale)
         p.tick("encode")
 
         if self.warmed_up:  # FREEZE ENCODER
@@ -626,10 +627,10 @@ class RAVE(pl.LightningModule):
                 loss_adv = loss_adv + _adv
 
         else:
-            pred_true = torch.tensor(0.).to(x)
-            pred_fake = torch.tensor(0.).to(x)
-            loss_dis = torch.tensor(0.).to(x)
-            loss_adv = torch.tensor(0.).to(x)
+            pred_true = torch.tensor(0.).type_as(x)
+            pred_fake = torch.tensor(0.).type_as(x)
+            loss_dis = torch.tensor(0.).type_as(x)
+            loss_adv = torch.tensor(0.).type_as(x)
 
         # COMPOSE GEN LOSS
         beta = get_beta_kl_cyclic_annealed(
@@ -640,6 +641,7 @@ class RAVE(pl.LightningModule):
             max_beta=self.max_kl,
         )
         loss_gen = distance + loss_adv + beta * kl
+        # loss_gen = kl
         if self.feature_match:
             loss_gen = loss_gen + feature_matching_distance
         p.tick("gen loss compose")
@@ -647,25 +649,29 @@ class RAVE(pl.LightningModule):
         # OPTIMIZATION
         if self.global_step % 2 and self.warmed_up:
             dis_opt.zero_grad()
-            loss_dis.backward()
+            # loss_dis.backward()
+            self.manual_backward(loss_dis)
             dis_opt.step()
         else:
             gen_opt.zero_grad()
-            loss_gen.backward()
+            self.manual_backward(loss_gen)
+            # loss_gen.backward()
             gen_opt.step()
         p.tick("optimization")
 
         # LOGGING
-        self.log("loss_dis", loss_dis)
-        self.log("loss_gen", loss_gen)
-        self.log("loss_adv", loss_adv)
-        self.log("loud_dist", loud_dist)
-        self.log("regularization", kl)
-        self.log("pred_true", pred_true.mean())
-        self.log("pred_fake", pred_fake.mean())
-        self.log("distance", distance)
-        self.log("beta", beta)
-        self.log("feature_matching", feature_matching_distance)
+        sync_dist = True
+        self.log("loss_dis", loss_dis, sync_dist=sync_dist)
+        self.log("loss_gen", loss_gen, sync_dist=sync_dist)
+        self.log("loss_adv", loss_adv, sync_dist=sync_dist)
+        self.log("loud_dist", loud_dist, sync_dist=sync_dist)
+        self.log("regularization", kl, sync_dist=sync_dist)
+        self.log("pred_true", pred_true.mean(), sync_dist=sync_dist)
+        self.log("pred_fake", pred_fake.mean(), sync_dist=sync_dist)
+        self.log("distance", distance, sync_dist=sync_dist)
+        self.log("beta", beta, sync_dist=sync_dist)
+        self.log("feature_matching", feature_matching_distance,
+                 sync_dist=sync_dist)
         p.tick("log")
 
         # print(p)
@@ -702,7 +708,8 @@ class RAVE(pl.LightningModule):
         distance = self.distance(x, y).detach()
 
         if self.trainer is not None:
-            self.log("validation", distance)
+            sync_dist = True
+            self.log("validation", distance, sync_dist=sync_dist)
 
         return torch.cat([x, y], -1).detach(), mean
 
@@ -712,6 +719,7 @@ class RAVE(pl.LightningModule):
 
         if self.saved_step > self.warmup:
             self.warmed_up = True
+            # print("Switching on discriminator")
 
         # LATENT SPACE ANALYSIS
         if not self.warmed_up:
@@ -724,20 +732,33 @@ class RAVE(pl.LightningModule):
             pca = PCA(z.shape[-1]).fit(z.cpu().numpy())
 
             components = pca.components_
-            components = torch.from_numpy(components).to(z)
+            components = torch.from_numpy(components).type_as(z)
             self.latent_pca.copy_(components)
 
             var = pca.explained_variance_ / np.sum(pca.explained_variance_)
             var = np.cumsum(var)
 
-            self.fidelity.copy_(torch.from_numpy(var).to(self.fidelity))
+            self.fidelity.copy_(torch.from_numpy(var).type_as(self.fidelity))
 
             var_percent = [.8, .9, .95, .99]
             for p in var_percent:
-                self.log(f"{p}%_manifold",
-                         np.argmax(var > p).astype(np.float32))
+                self.log(f"_manifold/{p}%",
+                         np.argmax(var > p).astype(np.float32), sync_dist=True)
 
         y = torch.cat(audio, 0)[:64].reshape(-1)
-        self.logger.experiment.add_audio("audio_val", y,
+
+        # scaling to avoid clipping on log
+        max_abs = torch.max(torch.abs(y.min()), y.max())
+        if max_abs > 0:
+            y /= max_abs
+        self.logger.experiment.add_audio("audio_val/1", y,
                                          self.saved_step.item(), self.sr)
+
+        y = torch.cat(audio, 0)[-64:].reshape(-1)
+        max_abs = torch.max(torch.abs(y.min()), y.max())
+        if max_abs > 0:
+            y /= max_abs
+        self.logger.experiment.add_audio("audio_val/2", y,
+                                         self.saved_step.item(), self.sr)
+
         self.idx += 1

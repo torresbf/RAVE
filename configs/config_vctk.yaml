@@ -36,7 +36,7 @@ data:
     batch_size_val:  32
     nr_samples: 65536
     normalize: true
-    num_workers: 40
+    num_workers: 64
     batch_sampling_mode: "sample_clips" # or sample groups
     eval_frac: 0.06
     verbose: true
@@ -47,33 +47,45 @@ data:
 
 # ------------------ Training ------------------
 trainer:
-  gpus: 1 # check
+  gpus: 2 # check
   max_epochs: 100000
   max_steps: 3000000
   # val_check_interval: 500
-  # accelerator: "dp"
-  check_val_every_n_epoch: 2
+  strategy: "ddp"
+  check_val_every_n_epoch: 1
   # ckpt: None
 
 # ------------------ Logger ------------------
   logger:
     class_path: pytorch_lightning.loggers.TensorBoardLogger
     init_args:
-      save_dir: "runs/vctk_48000"
+      save_dir: "runs/test_parallel_vctk_48000"
       name: "rave"
 
 # ------------------ Checkpoint callbacks ------------------
   callbacks:
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
-        #dirpath: ""
         monitor: "validation"
         mode: "min"
-        filename: "best-{epoch}-{step}"
-    # - class_path: pytorch_lightning.callbacks.ModelCheckpoint
-    #   init_args:
-    #     every_n_epochs: 20
-    #     filename: "best-{epoch}-{step}"
+        filename: "best-val-{epoch}-{step}"
+        save_top_k: 2
+        save_on_train_epoch_end: true
+    
     - class_path: pytorch_lightning.callbacks.ModelCheckpoint
       init_args:
         filename: "last"
+        save_on_train_epoch_end: true
+
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        every_n_epochs: 25
+        save_top_k: -1
+        filename: "ckpt-{epoch}-{step}"
+        save_on_train_epoch_end: true
+    
+    # - class_path: callbacks.visualization.PlotSpectograms
+    #   init_args:
+    #     log_n_epochs: 20
+    #     n_to_log: 2
+    #     save_png: true
