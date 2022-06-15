@@ -1,23 +1,14 @@
+import math
+import numpy as np
+from rave.core import search_for_run
+from rave.resample import Resampling
+from rave.model import RAVE
 import torch
 import torch.nn as nn
 from effortless_config import Config
 import logging
 from termcolor import colored
 import cached_conv as cc
-
-import os
-def convert_checkpoint(ckpt_path: str):
-    """
-    Remove pad buffers from a checkpoint and save
-    the new converted checkpoint in the same folder
-    """
-    ckpt = torch.load(ckpt_path)
-    keys = filter(lambda n: "pad" not in n, ckpt["state_dict"].keys())
-    ckpt["state_dict"] = {k: ckpt["state_dict"][k] for k in keys}
-    target = os.path.join(os.path.dirname(ckpt_path), "converted.ckpt")
-    torch.save(ckpt, target)
-    return target
-
 
 logging.basicConfig(level=logging.INFO,
                     format=colored("[%(relativeCreated).2f] ", "green") +
@@ -37,14 +28,7 @@ class args(Config):
 
 
 args.parse_args()
-cc.use_buffer_conv(args.CACHED)
-
-from rave.model import RAVE
-from rave.resample import Resampling
-from rave.core import search_for_run
-
-import numpy as np
-import math
+cc.use_cached_conv(args.CACHED)
 
 
 class TraceModel(nn.Module):
@@ -219,9 +203,7 @@ logging.info("loading model from checkpoint")
 
 RUN = search_for_run(args.RUN)
 logging.info(f"using {RUN}")
-RUN_CONVERTED = convert_checkpoint(RUN)
-logging.info(f"converted {RUN} to {RUN_CONVERTED}")
-model = RAVE.load_from_checkpoint(RUN_CONVERTED, strict=False).eval()
+model = RAVE.load_from_checkpoint(RUN, strict=False).eval()
 
 logging.info("flattening weights")
 for m in model.modules():
