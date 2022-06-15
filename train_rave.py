@@ -13,14 +13,14 @@ from utils.cli import CLI
 from data.vctk import VCTKDataModule
 
 cli = CLI(
-        model_class=RAVE, 
-        datamodule_class=pl.LightningDataModule, #pl.LightningDataModule,
-        subclass_mode_model=True,
-        subclass_mode_data=True,
-        save_config_overwrite=True,
-        run = False,
-    )
-  
+    model_class=RAVE,
+    datamodule_class=pl.LightningDataModule,  # pl.LightningDataModule,
+    subclass_mode_model=True,
+    subclass_mode_data=True,
+    save_config_overwrite=True,
+    run=False,
+)
+
 # ------------------ Device check ------------------
 
 # CUDA = gpu.getAvailable(maxMemory=.05)
@@ -40,13 +40,15 @@ cli = CLI(
 #     use_gpu = 0
 
 batch_size = cli.config["data"].as_dict()["init_args"]["batch_size"]
+ckpt_path = cli.config["ckpt_path"]
 
 x = torch.zeros(batch_size, 2**14)
 cli.model.validation_step(x, 0)
 
-run = search_for_run(None)
-# if run is not None:
-#     step = torch.load(run, map_location='cpu')["global_step"]
-#     trainer.fit_loop.epoch_loop._batches_that_stepped = step
+# run = search_for_run(None)
+if ckpt_path is not None:
+    step = torch.load(ckpt_path, map_location='cpu')["global_step"]
+    cli.trainer.fit_loop.epoch_loop._batches_that_stepped = step
 
-cli.trainer.fit(cli.model, cli.datamodule) #, ckpt_path=run)
+cli.trainer.fit(cli.model, cli.datamodule,
+                ckpt_path=ckpt_path)

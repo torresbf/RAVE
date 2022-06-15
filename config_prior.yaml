@@ -1,0 +1,112 @@
+seed_everything: 42
+n_signal: 65536
+model:
+  class_path: prior.model.Model
+  init_args:
+    resolution: 32
+    res_size: 512
+    skp_size: 256
+    kernel_size: 3
+    cycle_size: 4
+    n_layers: 10
+    pretrained_vae: rave_vctk.ts
+
+# ------------------ Datasets ------------------       
+# data:
+#   class_path: data.vocals.VocalsDataModule
+#   init_args:
+    
+#     dataset_dirs: 
+#       - "/media/data/bernardo/tencys_vocals_mono_16b_trim/"
+#       - "/media/data/bernardo/dataset3_ghero_vocals_mono_16b_trim/"
+#       - "/media/data/bernardo/dataset4_ghero_vocals_mono_16b_trim/"
+#       # - "/home/bernardo/data/tencys_vocals_mono_16b_trim_unknown/"
+
+# # ------------------ Data loading hyperparameters ------------------       
+#     batch_size: 50
+#     batch_size_val:  32
+#     nr_samples: 65536
+#     normalize: true
+#     num_workers: 40
+#     batch_sampling_mode: "sample_clips" # or sample groups
+#     eval_frac: 0.06
+#     verbose: true
+#     use_random_loader: false
+#     group_name_is_folder: true
+#     group_by_artist: true
+#     sr: 44100  # check, declared 2 times
+
+# # ------------------ Augmentations ------------------       
+#     augs: 
+#       "enable": true
+#       "gaussian_noise": 0
+#       "pitch_shift_naive": 0
+#       "time_stretch": 0
+#       "gain": 0.5
+#       "shift": 0
+#       "parametric_eq": 0.3
+#       "tanh_distortion": 0
+#       "time_mask": 0.5
+#       "formant_shift_parselmouth": 0
+#       "pitch_shift_parselmouth": 1.2
+#       "pitch_range_parselmouth": 1.2
+#       "pitch_shift_parselmouth_prob": 0.5
+#       "random_phase_mangle": 0.8
+
+data:
+  class_path: data.vctk.VCTKDataModule
+  init_args:
+    use_random_loader: false
+    dataset_dirs:
+    - /home/bernardo/data/wav48_silence_trimmed
+    batch_size: 100
+    batch_size_val: 32
+    nr_samples: 65536
+    normalize: true
+    num_workers: 40
+    sr: 48000
+    batch_sampling_mode: sample_clips
+    eval_frac: 0.06
+    group_name_is_folder: true
+    group_by_artist: true
+    augs: {}
+    transform_override: false
+    verbose: true
+# ------------------ Training ------------------
+trainer:
+  gpus: 1 # check
+  max_epochs: 100000
+  max_steps: 3000000
+  # val_check_interval: 500
+  # strategy: "ddp"
+  check_val_every_n_epoch: 1
+
+# ------------------ Logger ------------------
+  logger:
+    class_path: pytorch_lightning.loggers.TensorBoardLogger
+    init_args:
+      save_dir: "runs/test_prior"
+      name: "prior"
+
+# ------------------ Checkpoint callbacks ------------------
+  callbacks:
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        monitor: "validation"
+        mode: "min"
+        filename: "best-val-{epoch}-{step}"
+        save_top_k: 2
+        save_on_train_epoch_end: true
+    
+    - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+      init_args:
+        filename: "last"
+        save_on_train_epoch_end: true
+
+    # - class_path: pytorch_lightning.callbacks.ModelCheckpoint
+    #   init_args:
+    #     every_n_epochs: 25
+    #     save_top_k: -1
+    #     filename: "ckpt-{epoch}-{step}"
+    #     save_on_train_epoch_end: true
+    
